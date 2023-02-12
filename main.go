@@ -32,6 +32,7 @@ func countLines(f *os.File, counts map[string]int) int {
 }
 
 type stats struct {
+	fileName     string
 	dupeCount    int
 	maxDupeCount int
 	dupeLines    int
@@ -39,10 +40,11 @@ type stats struct {
 	maxLen       int
 	meanLen      float64
 	lengthSum    int
+	totalLines   int
 }
 
 func newStats() *stats {
-	s := stats{0, 0, 0, 1000000, 0, 0, 0}
+	s := stats{"", 0, 0, 0, 1000000, 0, 0, 0, 0}
 	return &s
 }
 
@@ -69,22 +71,23 @@ func CollectStats(counts *map[string]int, s *stats) {
 	}
 }
 
-func PresentStats(s *stats, totalLines int, t0 time.Time, t1 time.Time) {
-	s.meanLen = float64(s.lengthSum) / float64(s.dupeLines)
-	pct := (float64(s.dupeCount) / float64(totalLines)) * 100
+func PresentStats(s *stats, t time.Duration) {
+	//s.meanLen = float64(s.lengthSum) / float64(s.dupeLines)
+	pct := (float64(s.dupeCount) / float64(s.totalLines)) * 100
 
-	fmt.Fprintf(os.Stderr, "\n%10d\tTotal lines read in\n", totalLines)
-	fmt.Fprintf(os.Stderr, "%10d\tDupe lines (%.2f%%)\n", s.dupeCount, pct)
+	/*	fmt.Fprintf(os.Stderr, "\n%10d\tTotal lines read in\n", s.totalLines)
+		fmt.Fprintf(os.Stderr, "%10d\tDupe lines (%.2f%%)\n", s.dupeCount, pct)
 
-	if s.maxDupeCount > 0 {
-		fmt.Fprintf(os.Stderr, "%10d\tMax line dupes\n", s.maxDupeCount)
-		fmt.Fprintf(os.Stderr, "%10d\tMin dupe line length (bytes)\n", s.minLen)
-		fmt.Fprintf(os.Stderr, "%10d\tMax dupe line length (bytes)\n", s.maxLen)
-		fmt.Fprintf(os.Stderr, "%10.2f\tMean dupe line length (bytes)\n", s.meanLen)
-	}
+		if s.maxDupeCount > 0 {
+			fmt.Fprintf(os.Stderr, "%10d\tMax line dupes\n", s.maxDupeCount)
+			fmt.Fprintf(os.Stderr, "%10d\tMin dupe line length (bytes)\n", s.minLen)
+			fmt.Fprintf(os.Stderr, "%10d\tMax dupe line length (bytes)\n", s.maxLen)
+			fmt.Fprintf(os.Stderr, "%10.2f\tMean dupe line length (bytes)\n", s.meanLen)
+		}
 
-	fmt.Fprintf(os.Stderr, "\n\telepsed: %v\n\n", t1.Sub(t0))
-	t0 = t1
+		fmt.Fprintf(os.Stderr, "\n\telepsed: %v\n\n", t)
+	*/
+	fmt.Fprintf(os.Stdout, "%8d     %8d         %3.1f%%      %8d      %s\n", s.totalLines, s.dupeCount, pct, s.maxDupeCount, s.fileName)
 }
 
 func main() {
@@ -113,11 +116,10 @@ func main() {
 	} else {
 
 		files := os.Args[1:]
+		fmt.Println("   LINES     DUPE-LINES     PCT-DUPE     DUPE-MAX      FILE")
 
 		// foreach file
 		for _, file := range files {
-
-			fmt.Fprintf(os.Stderr, "***  %v\n", file)
 
 			f, err := os.Open(file)
 			if err != nil {
@@ -126,14 +128,16 @@ func main() {
 			}
 			defer f.Close()
 
+			s := newStats()
+			s.fileName = file
+
 			counts := make(map[string]int)
 			t0 := time.Now()
-			totalLines := countLines(f, counts)
+			s.totalLines = countLines(f, counts)
 			t1 := time.Now()
-			s := newStats()
 
 			CollectStats(&counts, s)
-			PresentStats(s, totalLines, t0, t1)
+			PresentStats(s, t1.Sub(t0))
 		}
 	}
 }
